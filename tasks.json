@@ -37,6 +37,17 @@
         "method": "GET",
         "expectStatus": "200"
       }
+    },
+    {
+      "id": "t_jd_bean",
+      "name": "京东：每日京豆签到（默认关闭）",
+      "type": "jd-checkin",
+      "enabled": false,
+      "createdAt": 1756820000000,
+      "config": {
+        "cookie": "{{secrets.JD_COOKIE}}"
+      },
+      "note": "默认关闭。先在仓库 Secrets 添加 JD_COOKIE，再到面板把本任务启用。京东已启用 h5st 签名，纯服务端大概率被拒——若面板显示'被拦截'，说明需要青龙面板+签名库。"
     }
   ]
 }

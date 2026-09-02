@@ -117,7 +117,7 @@ const docsFiles = await fs.readdir(path.join(tmp, 'docs', 'data'));
 check('生成 state.json / tasks.json / adapters.json',
   ['state.json', 'tasks.json', 'adapters.json'].every((f) => docsFiles.includes(f)), docsFiles.join(','));
 const adapters = JSON.parse(await fs.readFile(path.join(tmp, 'docs', 'data', 'adapters.json'), 'utf8'));
-check('适配器清单含 4 种类型', adapters.adapters.length === 4, 'n=' + adapters.adapters.length);
+check('适配器清单含 5 种类型', adapters.adapters.length === 5, 'n=' + adapters.adapters.length);
 check('适配器字段声明完整', adapters.adapters.every((a) => a.fields.length > 0 && a.label && a.desc));
 const docsState = await fs.readFile(path.join(tmp, 'docs', 'data', 'state.json'), 'utf8');
 check('静态产物同样不含明文密钥', !docsState.includes('SUPER_SECRET_VALUE_12345'));

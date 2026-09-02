@@ -196,6 +196,76 @@ const ADAPTERS = {
     },
   },
 
+  /**
+   * 京东每日京豆签到
+   * ------------------------------------------------------------------
+   * 重要前提（务必读）：京东自 2023 年起对签到类接口启用 h5st 签名校验，
+   * 签名需要真实浏览器环境（设备指纹 + 时间戳 + 反爬参数），纯服务端请求
+   * 拿不到合法签名，会被接口拒绝。本适配器做的是「诚实尝试」：
+   *   - 带上你的 Cookie 真去打一次 signBeanAct
+   *   - 京东若返回签名/风控错误，如实上报，并提示改用青龙面板 + 签名库
+   * 不做任何签名伪造或逆向。能成则成，不能成也不会骗你。
+   */
+  'jd-checkin': {
+    label: '京东京豆签到',
+    desc: '调用京东 signBeanAct 接口领京豆。Cookie 请填 {{secrets.JD_COOKIE}} 并在仓库 Secrets 存真实值。注意：京东已启用 h5st 签名，纯服务端请求大概率被拒，本适配器会如实上报。',
+    fields: [
+      { key: 'cookie', label: '京东 Cookie', type: 'password', required: true, placeholder: '{{secrets.JD_COOKIE}}' },
+    ],
+    async run(cfg, opts) {
+      if (!cfg.cookie) return { ok: false, message: '未配置 Cookie' };
+      if (/\{\{/.test(cfg.cookie)) return { ok: false, message: 'Cookie 未注入：请在仓库 Secrets 配置 JD_COOKIE' };
+      const cookie = String(cfg.cookie).trim();
+      const pin = (cookie.match(/pt_pin=([^;]+)/) || [])[1] || '';
+      const url =
+        'https://api.m.jd.com/client.action?functionId=signBeanAct&appid=ld&client=android&clientVersion=11.0.0';
+      const body = JSON.stringify({ dfp: '', appid: 'ld' });
+      const res = await fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            Cookie: cookie,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent':
+              'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+            Referer: 'https://jdshare.m.jd.com/',
+          },
+          body: 'body=' + encodeURIComponent(body) + '&',
+        },
+        opts.timeoutMs
+      );
+      const text = await res.text().catch(() => '');
+      let data = null;
+      try { data = JSON.parse(text); } catch { /* 非 JSON */ }
+
+      // 签名/风控拦截检测
+      const blocked =
+        looksLikeRiskControl(text) ||
+        (data && /h5st|sign|校验|风控|滑块|验证/.test(JSON.stringify(data)));
+      if (blocked) {
+        return {
+          ok: false,
+          message:
+            '被京东拦截：需要 h5st 浏览器签名，纯服务端请求无法生成。建议改用青龙面板 + 签名库（如 JDHelloWorld/jd_scripts 的签名依赖）。',
+          detail: { status: res.status, body: truncate(text, 500), pin: pin ? decodeURIComponent(pin) : null },
+        };
+      }
+      if (data) {
+        const biz = (data.data && (data.data.bizMsg || data.data.msg || data.data.message)) || data.msg || data.message || '';
+        if (data.code === '0' || data.success === true || /成功|已/.test(biz)) {
+          return {
+            ok: true,
+            message: '京豆签到成功' + (pin ? '（' + decodeURIComponent(pin) + '）' : ''),
+            detail: data,
+          };
+        }
+        return { ok: false, message: biz || '接口返回异常', detail: data };
+      }
+      return { ok: false, message: '非预期响应', detail: { status: res.status, body: truncate(text, 300) } };
+    },
+  },
+
   /** 通用 HTTP 请求 */
   'generic-http': {
     label: '通用 HTTP 请求',

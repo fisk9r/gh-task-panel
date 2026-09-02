@@ -56,12 +56,14 @@
 |---|---|
 | `JUEJIN_COOKIE` | 掘金签到 Cookie |
 | `SENDKEY` | Server酱 SendKey |
+| `JD_COOKIE` | 京东 Cookie（pt_key=...; pt_pin=...）—— 见下方「京东 Cookie 添加流程」 |
 
-任务配置里写 `{{secrets.JUEJIN_COOKIE}}`，运行时才注入真实值。
+任务配置里写 `{{secrets.JD_COOKIE}}`，运行时才注入真实值。
 **明文永远不会进 Git**，所以公开仓库也能安全存凭证。
 
 > 若你加了新 Secret，记得在 `daily.yml` 的 `env:` 段里加一行映射
 > （`YOUR_NAME: ${{ secrets.YOUR_NAME }}`），否则引擎读到的是未解析的占位符，会如实报「配置未注入」。
+> `JD_COOKIE` 这行**已经加好了**，你只需要去 Secrets 页面填值即可。
 
 ### 4. 打开面板，连上仓库
 
@@ -81,10 +83,62 @@ PAT **只存在这台电脑浏览器的 localStorage 里**，不上传任何第�
 |---|---|
 | `health-check` | 站点健康检测，监控你自己的服务是否存活（可校验响应文本、延迟） |
 | `juejin-checkin` | 掘金成长值签到（公开接口，需 Cookie） |
+| `jd-checkin` | 京东京豆签到（需 Cookie；**受 h5st 签名限制，纯服务端大概率被拒，会如实上报**） |
 | `serverchan` | Server酱推送，把结果发到微信 |
 | `generic-http` | 通用 HTTP 请求，对接你自己的接口 |
 
 加新类型只需在 `engine/tasks.mjs` 的 `ADAPTERS` 里加一项，**面板表单会自动生成**（字段声明同步进 `docs/data/adapters.json`）。
+
+---
+
+## 京东 Cookie 添加流程（完整 5 步）
+
+> 先说清楚结果预期：京东自 2023 年起对签到接口启用 **h5st 签名校验**，需要真实浏览器指纹。
+> 本项目是纯服务端（GitHub Actions），**拿不到合法签名，京东大概率会拒绝签到**。
+> 下面流程照样给你搭好「Cookie 安全存储 + 定时触发 + 结果回显」，能成则成；若面板显示
+> 「被京东拦截：需要 h5st 签名」，那是正常现象——真要稳定领京豆请用**青龙面板 + 签名库**（见文末）。
+> 本流程的价值在于：你的京东 Cookie 已安全托管，随时可喂给更合适的运行环境。
+
+### 第 1 步：拿到你的京东 Cookie
+
+1. 电脑浏览器登录 <https://m.jd.com/> 或 <https://jd.com/>。
+2. 按 **F12** 打开开发者工具 → **网络(Network)** → 刷新页面 → 点任意一条 `api.m.jd.com` 或主域请求。
+3. 在「请求标头(Request Headers)」里复制 **Cookie** 整串，重点要包含这两段：
+   ```
+   pt_key=xxxxxxxxxxxxxxxx; pt_pin=你的账号;
+   ```
+   `pt_key=...; pt_pin=...;` 这两段就是账号等价物，**像密码一样保管，别发给人、别进代码**。
+
+### 第 2 步：存进仓库 Secrets
+
+仓库 **Settings → Secrets and variables → Actions → New repository secret**：
+
+- **Name**：`JD_COOKIE`
+- **Secret**：粘贴第 1 步整串 Cookie
+
+（映射行 `JD_COOKIE: ${{ secrets.JD_COOKIE }}` 已在 `daily.yml` 里预置，无需手改。）
+
+### 第 3 步：启用京东任务
+
+打开面板（Pages 网址）→ 连上仓库后 → 找到「京东：每日京豆签到（默认关闭）」→ 点开关启用。
+或在 `tasks.json` 里把该任务的 `"enabled": false` 改成 `true` 后提交。
+
+### 第 4 步：触发一次看结果
+
+面板点「▶ 运行」或等下次 08:10/20:10 自动跑。打开「运行日志」看这条任务：
+
+- ✅ `京豆签到成功` → 走运，签名没拦你（少见但偶有）。
+- ❌ `被京东拦截：需要 h5st 签名…` → 预期内，见下方替代方案。
+- ❌ `Cookie 未注入` → 检查 `JD_COOKIE` Secret 是否填对、名称拼对。
+- ❌ `Cookie 失效…请重新登录` → Cookie 过期了，回到第 1 步重拿。
+
+### 第 5 步（可选）：换能用的环境
+
+若第 4 步是「被拦截」，说明需要浏览器签名能力：
+
+- **青龙面板（ql）** 部署在**家里 NAS / 旧电脑**（国内 IP、和手机同网，风控最友好），
+  装 `JDHelloWorld/jd_scripts` 等库，它们自带 h5st 签名依赖。
+- 把本仓库的 `JD_COOKIE` 直接复制到青龙的「环境变量」即可复用，无需重新抓。
 
 ---
 

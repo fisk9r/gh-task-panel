@@ -47,6 +47,7 @@ jobs:
         env:
           JUEJIN_COOKIE: ${{ secrets.JUEJIN_COOKIE }}
           SENDKEY: ${{ secrets.SENDKEY }}
+          JD_COOKIE: ${{ secrets.JD_COOKIE }}
           TZ: Asia/Shanghai
           SYNC_DOCS: '1'
         run: |
