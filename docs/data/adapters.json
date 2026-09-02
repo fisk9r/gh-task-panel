@@ -67,6 +67,20 @@
       ]
     },
     {
+      "type": "jd-checkin",
+      "label": "京东京豆签到",
+      "desc": "调用京东 signBeanAct 接口领京豆。Cookie 请填 {{secrets.JD_COOKIE}} 并在仓库 Secrets 存真实值。注意：京东已启用 h5st 签名，纯服务端请求大概率被拒，本适配器会如实上报。",
+      "fields": [
+        {
+          "key": "cookie",
+          "label": "京东 Cookie",
+          "type": "password",
+          "required": true,
+          "placeholder": "{{secrets.JD_COOKIE}}"
+        }
+      ]
+    },
+    {
       "type": "generic-http",
       "label": "通用 HTTP 请求",
       "desc": "自定义一次 HTTP 请求。适合对接你自己开发的、无鉴权风控的接口。",
