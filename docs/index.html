@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>定时任务控制台 · GitHub Actions 版</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⏱</text></svg>">
+<style>
+  :root{
+    --bg:#f4f6fa; --panel:#ffffff; --panel-2:#fafbfd;
+    --line:#e2e6ee; --line-strong:#cdd4e0;
+    --ink:#1b2333; --ink-2:#5a6580; --ink-3:#8b95ab;
+    --accent:#2f6df6; --accent-soft:#e8f0ff;
+    --ok:#0f9960; --ok-soft:#e6f6ee;
+    --warn:#c47f00; --warn-soft:#fdf3e0;
+    --err:#d1413c; --err-soft:#fdeceb;
+    --idle:#7a8399; --idle-soft:#eef0f5;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Consolas,"Liberation Mono",monospace;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(27,35,51,.05),0 4px 16px rgba(27,35,51,.05);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    background-image:
+      linear-gradient(rgba(47,109,246,.045) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(47,109,246,.045) 1px,transparent 1px);
+    background-size:32px 32px;
+    color:var(--ink);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 72px}
+
+  /* ---------- 顶栏 ---------- */
+  header.top{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:16px 18px;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px;
+  }
+  .logo{
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),#6b9bff);color:#fff;font-size:19px;flex:none;
+  }
+  .titles h1{margin:0;font-size:17px;letter-spacing:.2px}
+  .titles p{margin:2px 0 0;font-size:12px;color:var(--ink-3);font-family:var(--mono)}
+  .spacer{flex:1}
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;
+    font-size:12px;font-family:var(--mono);border:1px solid var(--line-strong);background:var(--panel-2);
+  }
+  .pill b{font-weight:600}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--idle);flex:none}
+  .dot.ok{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+  .dot.err{background:var(--err);box-shadow:0 0 0 3px var(--err-soft)}
+  .dot.warn{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+
+  /* ---------- 连接条 ---------- */
+  .conn{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;box-shadow:var(--shadow);margin-bottom:16px;
+  }
+  .conn .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:11px;color:var(--ink-2);font-family:var(--mono);letter-spacing:.3px}
+  input,select,textarea{
+    font:13px/1.5 var(--mono);color:var(--ink);background:#fff;
+    border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;outline:none;min-width:0;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  textarea{font-family:var(--mono);resize:vertical;min-height:64px}
+  .conn input#pat{width:280px}
+  .conn input#owner,.conn input#repo{width:130px}
+  .conn input#branch{width:110px}
+  button{
+    font:13px/1 inherit;font-weight:600;color:#fff;background:var(--accent);
+    border:1px solid var(--accent);border-radius:8px;padding:8px 15px;cursor:pointer;
+    transition:filter .15s,transform .05s;white-space:nowrap;
+  }
+  button:hover{filter:brightness(1.07)}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.5;cursor:not-allowed;filter:none}
+  button.ghost{background:#fff;color:var(--ink);border-color:var(--line-strong);font-weight:500}
+  button.ghost:hover{background:var(--panel-2)}
+  button.danger{background:#fff;color:var(--err);border-color:#f0c3c1}
+  button.danger:hover{background:var(--err-soft)}
+  button.sm{padding:5px 10px;font-size:12px;border-radius:7px}
+  .hint{font-size:12px;color:var(--ink-3);margin:9px 0 0;line-height:1.65}
+  .hint code{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-family:var(--mono);font-size:11px}
+  .hint a{color:var(--accent);text-decoration:none}
+  .hint a:hover{text-decoration:underline}
+
+  /* ---------- 统计 ---------- */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px;margin-bottom:16px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+  .stat .k{font-size:11px;color:var(--ink-3);font-family:var(--mono);letter-spacing:.4px}
+  .stat .v{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1.25;margin-top:3px;letter-spacing:-.5px}
+  .stat.ok .v{color:var(--ok)} .stat.err .v{color:var(--err)} .stat.warn .v{color:var(--warn)}
+
+  /* ---------- 区块 ---------- */
+  section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden}
+  .sec-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .sec-head h2{margin:0;font-size:14px;font-weight:600}
+  .sec-head .sub{font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+  .sec-body{padding:14px 16px}
+
+  /* ---------- 任务卡 ---------- */
+  .task{border:1px solid var(--line);border-radius:10px;padding:13px 14px;margin-bottom:11px;background:var(--panel-2)}
+  .task:last-child{margin-bottom:0}
+  .task.off{opacity:.62}
+  .task-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .task-name{font-weight:600;font-size:14px}
+  .tag{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:5px;background:var(--idle-soft);color:var(--ink-2);border:1px solid var(--line)}
+  .st{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600}
+  .st.ok{background:var(--ok-soft);color:var(--ok)}
+  .st.err{background:var(--err-soft);color:var(--err)}
+  .st.none{background:var(--idle-soft);color:var(--idle)}
+  .task-acts{display:flex;gap:7px;margin-left:auto;flex-wrap:wrap}
+  .task-meta{font-size:12px;color:var(--ink-3);font-family:var(--mono);margin-top:7px;display:flex;gap:14px;flex-wrap:wrap}
+  .cfg{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:#fff;border:1px solid var(--line);border-radius:6px;padding:7px 9px;margin-top:8px;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
+  .cfg .k{color:var(--accent)}
+
+  .switch{position:relative;width:40px;height:22px;flex:none;cursor:pointer}
+  .switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+  .switch span{position:absolute;inset:0;background:var(--line-strong);border-radius:999px;transition:background .18s}
+  .switch span::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .18s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .switch input:checked + span{background:var(--ok)}
+  .switch input:checked + span::after{transform:translateX(18px)}
+
+  /* ---------- 日志 ---------- */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11px;color:var(--ink-3);font-family:var(--mono);letter-spacing:.3px;background:var(--panel-2);position:sticky;top:0}
+  td.mono,th.mono{font-family:var(--mono)}
+  tbody tr:hover{background:var(--panel-2)}
+  .logbox{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:9px}
+
+  /* ---------- 弹窗 ---------- */
+  .mask{position:fixed;inset:0;background:rgba(20,26,38,.42);backdrop-filter:blur(2px);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:50}
+  .mask.on{display:flex}
+  .modal{background:var(--panel);border-radius:14px;width:min(620px,100%);box-shadow:0 20px 60px rgba(20,26,38,.28);border:1px solid var(--line)}
+  .modal h3{margin:0;padding:16px 18px;border-bottom:1px solid var(--line);font-size:15px}
+  .modal .body{padding:16px 18px;display:flex;flex-direction:column;gap:13px}
+  .modal .foot{padding:13px 18px;border-top:1px solid var(--line);display:flex;gap:9px;justify-content:flex-end;background:var(--panel-2);border-radius:0 0 14px 14px}
+  .f{display:flex;flex-direction:column;gap:5px}
+  .f label{font-size:12px;color:var(--ink-2);font-weight:600}
+  .f label .req{color:var(--err)}
+  .f .desc{font-size:11px;color:var(--ink-3);font-weight:400}
+  .f input,.f select,.f textarea{width:100%}
+
+  /* ---------- 提示条 ---------- */
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+    background:#1b2333;color:#fff;padding:10px 18px;border-radius:9px;font-size:13px;z-index:99;transition:.22s;max-width:min(560px,92vw);text-align:center}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.err{background:var(--err)} #toast.ok{background:var(--ok)}
+  .empty{color:var(--ink-3);font-size:13px;text-align:center;padding:26px 10px;font-family:var(--mono)}
+  .loading{color:var(--ink-3);font-family:var(--mono);font-size:13px;padding:20px;text-align:center}
+  @media (max-width:640px){
+    .conn input#pat,.conn input#owner,.conn input#repo,.conn input#branch{width:100%}
+    .field{width:100%} .task-acts{margin-left:0;width:100%}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="logo">⏱</div>
+    <div class="titles">
+      <h1>定时任务控制台</h1>
+      <p id="subtitle">GitHub Actions · 每日 08:10 / 20:10（北京时间）</p>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill"><span class="dot" id="modeDot"></span><b id="modeText">只读模式</b></span>
+    <span class="pill">最后更新 <b id="updatedAt">—</b></span>
+    <button class="ghost sm" id="btnRefresh" title="重新拉取 tasks.json / state.json">↻ 刷新</button>
+  </header>
+
+  <div class="conn">
+    <div class="row">
+      <div class="field">
+        <label>OWNER</label>
+        <input id="owner" placeholder="your-name" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>REPO</label>
+        <input id="repo" placeholder="gh-task-panel" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>BRANCH</label>
+        <input id="branch" value="main" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>PERSONAL ACCESS TOKEN</label>
+        <input id="pat" type="password" placeholder="github_pat_…（只存本机浏览器）" autocomplete="off">
+      </div>
+      <button id="btnConnect">连接仓库</button>
+      <button class="ghost" id="btnClear">清除</button>
+    </div>
+    <p class="hint">
+      不填 PAT 也能看运行结果（<b>只读模式</b>）。填入 <b>fine-grained PAT</b> 后即可在页面上直接增删改任务、并一键触发 Actions 运行 —— 配置改动会写回仓库的 <code>tasks.json</code>。<br>
+      PAT 需要权限：Contents <b>Read and write</b>、Actions <b>Read and write</b>、Metadata <b>Read</b>。令牌<b>只保存在这台电脑的浏览器 localStorage</b>，不会上传到任何第三方服务器。
+      <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">→ 去创建 PAT</a>
+    </p>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <section>
+    <div class="sec-head">
+      <h2>任务列表</h2>
+      <span class="sub" id="taskCount">—</span>
+      <div class="spacer"></div>
+      <span class="sub" id="runState"></span>
+      <button class="sm" id="btnNew">＋ 新建任务</button>
+      <button class="ghost sm" id="btnRunAll">▶ 运行全部</button>
+    </div>
+    <div class="sec-body" id="taskList"><div class="loading">加载中…</div></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>运行日志</h2>
+      <span class="sub">最近 120 条 · 按天分片存于 data/logs/</span>
+    </div>
+    <div class="sec-body">
+      <div class="logbox">
+        <table id="logTable"><thead><tr>
+          <th class="mono">时间</th><th>任务</th><th class="mono">类型</th><th>结果</th><th class="mono">耗时</th>
+        </tr></thead><tbody><tr><td colspan="5" class="empty">加载中…</td></tr></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <p class="hint" style="margin-top:18px">
+    本平台只对接<b>平台自身未设风控</b>的公开接口（站点健康检测、消息推送、你自己的 API）。
+    遇到签名校验、设备指纹、滑块验证码的接口会<b>如实报失败</b>，不做任何绕过。
+  </p>
+</div>
+
+<!-- 任务编辑弹窗 -->
+<div class="mask" id="mask">
+  <div class="modal">
+    <h3 id="modalTitle">新建任务</h3>
+    <div class="body" id="modalBody"></div>
+    <div class="foot">
+      <button class="ghost" id="btnCancel">取消</button>
+      <button id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   状态
+   ============================================================ */
+const $ = (s) => document.querySelector(s);
+const LS = 'gh-task-panel';
+const state = {
+  cfg: { owner:'', repo:'', branch:'main', pat:'' },
+  tasks: [], results: {}, logs: [], adapters: [],
+  editing: null,   // null=新建，否则为任务对象
+  connected: false,
+  tasksSha: null,  // 写回 tasks.json 需要的 sha
+  lastRun: null,
+};
+
+const ADAPTER_FALLBACK = [
+  { type:'health-check', label:'站点健康检测', desc:'定时探测 URL 是否在线。', fields:[
+    {key:'url',label:'探测地址',type:'text',required:true},
+    {key:'expectText',label:'响应需包含的文本（可选）',type:'text'},
+    {key:'timeoutMs',label:'超时（毫秒，可选）',type:'text'}]},
+  { type:'juejin-checkin', label:'掘金每日签到', desc:'公开成长值签到接口，需 Cookie。', fields:[
+    {key:'cookie',label:'掘金 Cookie',type:'password',required:true}]},
+  { type:'serverchan', label:'Server酱 消息推送', desc:'推送消息到微信。', fields:[
+    {key:'sendkey',label:'SendKey',type:'password',required:true},
+    {key:'title',label:'标题',type:'text'},
+    {key:'content',label:'内容（支持 Markdown）',type:'textarea'}]},
+  { type:'generic-http', label:'通用 HTTP 请求', desc:'自定义一次 HTTP 请求。', fields:[
+    {key:'url',label:'请求地址',type:'text',required:true},
+    {key:'method',label:'方法',type:'text'},
+    {key:'headers',label:'请求头（JSON 对象）',type:'textarea'},
+    {key:'body',label:'请求体（可选）',type:'textarea'},
+    {key:'expectStatus',label:'期望状态码',type:'text'}]},
+];
+
+/* ============================================================
+   工具
+   ============================================================ */
+function toast(msg, kind){ const t=$('#toast'); t.textContent=msg; t.className='on'+(kind?' '+kind:''); clearTimeout(t._h); t._h=setTimeout(()=>t.className='',3000); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtTime(ts){
+  if(!ts) return '—';
+  const d=new Date(ts);
+  const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+function b64enc(str){
+  const bytes=new TextEncoder().encode(str); let bin='';
+  for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b64dec(b64){
+  const bin=atob(b64); const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function saveCfg(){ localStorage.setItem(LS, JSON.stringify(state.cfg)); }
+function loadCfg(){
+  try{ const o=JSON.parse(localStorage.getItem(LS)||'{}'); state.cfg=Object.assign(state.cfg,o); }catch{}
+  $('#owner').value=state.cfg.owner; $('#repo').value=state.cfg.repo;
+  $('#branch').value=state.cfg.branch||'main'; $('#pat').value=state.cfg.pat||'';
+}
+
+/* ============================================================
+   GitHub API
+   ============================================================ */
+const api = (path) => 'https://api.github.com/repos/'+state.cfg.owner+'/'+state.cfg.repo+path;
+function ghHeaders(){
+  return { 'Authorization':'Bearer '+state.cfg.pat, 'Accept':'application/vnd.github+json',
+           'X-GitHub-Api-Version':'2022-11-28', 'Content-Type':'application/json' };
+}
+async function gh(path, opts={}){
+  const r = await fetch(api(path), Object.assign({ headers: ghHeaders() }, opts));
+  let data=null; try{ data=await r.json(); }catch{}
+  if(!r.ok) throw new Error((data&&data.message)||('HTTP '+r.status));
+  return data;
+}
+
+/** 拉取任务定义：连上了走 API（最新），否则读静态 data/tasks.json */
+async function fetchTasks(){
+  if(state.connected){
+    const f = await gh('/contents/tasks.json?ref='+encodeURIComponent(state.cfg.branch||'main'));
+    state.tasksSha = f.sha;
+    const parsed = JSON.parse(b64dec(f.content.replace(/\n/g,'')));
+    return Array.isArray(parsed.tasks) ? parsed.tasks : [];
+  }
+  const r = await fetch('data/tasks.json?t='+Date.now(), {cache:'no-store'});
+  if(!r.ok) return [];
+  const d = await r.json();
+  return Array.isArray(d.tasks) ? d.tasks : [];
+}
+
+async function saveTasksToRepo(tasks){
+  const cur = await gh('/contents/tasks.json?ref='+encodeURIComponent(state.cfg.branch||'main'));
+  const body = JSON.stringify({ version:1, tasks }, null, 2)+'\n';
+  return await gh('/contents/tasks.json', {
+    method:'PUT',
+    body: JSON.stringify({
+      message:'chore(panel): 更新任务配置 '+new Date().toISOString(),
+      content: b64enc(body),
+      sha: cur.sha,
+      branch: state.cfg.branch||'main',
+    }),
+  });
+}
+
+/** 触发 daily.yml 运行；only 为空则跑全部启用任务 */
+async function dispatchRun(only, all){
+  return await gh('/actions/workflows/daily.yml/dispatches', {
+    method:'POST',
+    body: JSON.stringify({ ref: state.cfg.branch||'main', inputs: { only: only||'', all: all?'true':'false' } }),
+  });
+}
+
+/** 取最近一次 daily.yml 运行状态 */
+async function fetchLastRun(){
+  const d = await gh('/actions/workflows/daily.yml/runs?per_page=1');
+  const run = d.workflow_runs && d.workflow_runs[0];
+  if(!run) return null;
+  return { status:run.status, conclusion:run.conclusion, event:run.event,
+           at:Date.parse(run.created_at), url:run.html_url, name:run.display_title||'' };
+}
+
+/* ============================================================
+   渲染
+   ============================================================ */
+function renderStats(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const tl=state.logs.filter(l=>l.at>=today.getTime());
+  const ok=tl.filter(l=>l.ok).length, fail=tl.filter(l=>!l.ok).length;
+  const total=state.tasks.length, enabled=state.tasks.filter(t=>t.enabled!==false).length;
+  const rate = (ok+fail) ? Math.round(ok/(ok+fail)*100) : 0;
+  $('#stats').innerHTML = [
+    ['任务总数', total, ''],
+    ['已启用', enabled, ''],
+    ['今日成功', ok, 'ok'],
+    ['今日失败', fail, fail?'err':''],
+    ['今日成功率', (ok+fail? rate+'%':'—'), (ok+fail&&rate<60)?'warn':''],
+  ].map(([k,v,c])=>'<div class="stat '+c+'"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>').join('');
+  $('#taskCount').textContent = total+' 个任务 · '+enabled+' 个启用';
+}
+
+function renderTasks(){
+  const box=$('#taskList');
+  if(!state.tasks.length){ box.innerHTML='<div class="empty">还没有任务。点右上角「＋ 新建任务」添加，或直接编辑仓库根目录下的 tasks.json。</div>'; return; }
+  box.innerHTML = state.tasks.map(t=>{
+    const r = state.results[t.id]||{};
+    const on = t.enabled!==false;
+    const stCls = r.at==null ? 'none' : (r.ok?'ok':'err');
+    const stTxt = r.at==null ? '未运行' : (r.ok?'成功':'失败');
+    const cfgKeys = Object.keys(t.config||{});
+    const cfgHtml = cfgKeys.length
+      ? '<div class="cfg">'+cfgKeys.map(k=>'<span class="k">'+esc(k)+'</span>: '+esc(String(t.config[k]||'').slice(0,160))+'</div>').join('')
+      : '';
+    return '<div class="task'+(on?'':' off')+'">'
+      + '<div class="task-top">'
+      +   '<label class="switch" title="'+(on?'点击停用':'点击启用')+'"><input type="checkbox" data-act="toggle" data-id="'+esc(t.id)+'"'+(on?' checked':'')+(state.connected?'':' disabled')+'><span></span></label>'
+      +   '<span class="task-name">'+esc(t.name)+'</span>'
+      +   '<span class="tag">'+esc(t.type)+'</span>'
+      +   '<span class="st '+stCls+'">'+stTxt+'</span>'
+      +   '<span class="task-acts">'
+      +     '<button class="ghost sm" data-act="run" data-id="'+esc(t.id)+'"'+(state.connected?'':' disabled')+'>▶ 运行</button>'
+      +     '<button class="ghost sm" data-act="edit" data-id="'+esc(t.id)+'"'+(state.connected?'':' disabled')+'>编辑</button>'
+      +     '<button class="danger sm" data-act="del" data-id="'+esc(t.id)+'"'+(state.connected?'':' disabled')+'>删除</button>'
+      +   '</span>'
+      + '</div>'
+      + '<div class="task-meta">'
+      +   '<span>上次：'+fmtTime(r.at)+'</span>'
+      +   '<span>累计 '+(r.runCount||0)+' 次 · 成功 '+(r.okCount||0)+' 次</span>'
+      +   '<span>耗时 '+(r.durationMs!= null? r.durationMs+'ms':'—')+'</span>'
+      + '</div>'
+      + (r.message?'<div class="task-meta"><span style="color:var(--ink-2)">'+esc(r.message)+'</span></div>':'')
+      + cfgHtml
+      + '</div>';
+  }).join('');
+}
+
+function renderLogs(){
+  const tb=$('#logTable').querySelector('tbody');
+  if(!state.logs.length){ tb.innerHTML='<tr><td colspan="5" class="empty">暂无运行记录。运行一次后结果会出现在这里。</td></tr>'; return; }
+  tb.innerHTML = state.logs.slice(0,120).map(l=>
+    '<tr><td class="mono">'+fmtTime(l.at)+'</td><td>'+esc(l.taskName)+'</td><td class="mono">'+esc(l.type)+'</td>'
+    +'<td><span class="st '+(l.ok?'ok':'err')+'">'+(l.ok?'成功':'失败')+'</span> '+esc(l.message||'')+'</td>'
+    +'<td class="mono">'+(l.durationMs!=null?l.durationMs+'ms':'—')+'</td></tr>').join('');
+}
+
+function renderRunState(){
+  const el=$('#runState');
+  if(!state.connected){ el.textContent=''; return; }
+  if(!state.lastRun){ el.textContent=''; return; }
+  const r=state.lastRun;
+  const done = r.status==='completed';
+  const cls = !done?'warn':(r.conclusion==='success'?'ok':'err');
+  const txt = !done?'运行中':(r.conclusion==='success'?'上次运行成功':'上次运行失败');
+  el.innerHTML = '<span class="pill"><span class="dot '+cls+'"></span><a href="'+esc(r.url)+'" target="_blank" rel="noopener" style="color:var(--ink-2);text-decoration:none">'+txt+'</a></span>';
+}
+
+function renderMode(){
+  $('#modeText').textContent = state.connected ? '已连接 · 可编辑' : '只读模式';
+  $('#modeDot').className = 'dot ' + (state.connected?'ok':'warn');
+}
+
+/* ============================================================
+   弹窗表单
+   ============================================================ */
+function openModal(task){
+  state.editing = task || null;
+  const adapters = state.adapters.length? state.adapters : ADAPTER_FALLBACK;
+  const cur = task || { name:'', type:adapters[0].type, enabled:true, config:{} };
+  $('#modalTitle').textContent = task ? '编辑任务' : '新建任务';
+
+  const opts = adapters.map(a=>'<option value="'+esc(a.type)+'"'+(a.type===cur.type?' selected':'')+'>'+esc(a.label)+' — '+esc(a.desc)+'</option>').join('');
+  let html = ''
+    + '<div class="f"><label>任务名称 <span class="req">*</span></label><input id="f_name" value="'+esc(cur.name)+'" placeholder="例如：我的博客健康检测" maxlength="60"></div>'
+    + '<div class="f"><label>任务类型 <span class="req">*</span></label><select id="f_type">'+opts+'</select><span class="desc" id="f_typeDesc"></span></div>'
+    + '<div id="f_fields"></div>'
+    + '<div class="f"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="f_enabled" style="width:auto"'+(cur.enabled!==false?' checked':'')+'> 启用该任务</label></div>'
+    + '<p class="hint">敏感值（Cookie、SendKey、Token）请写成 <code>{{secrets.NAME}}</code>，再到仓库 <b>Settings → Secrets and variables → Actions</b> 里添加同名密钥。这样明文永远不会进 Git。</p>';
+
+  $('#modalBody').innerHTML = html;
+  const syncFields = () => {
+    const type = $('#f_type').value;
+    const a = adapters.find(x=>x.type===type);
+    $('#f_typeDesc').textContent = a ? a.desc : '';
+    $('#f_fields').innerHTML = (a?a.fields:[]).map(f=>{
+      const v = (cur.config||{})[f.key] ?? '';
+      const ph = f.placeholder ? ' placeholder="'+esc(f.placeholder)+'"' : '';
+      if(f.type==='textarea') return '<div class="f"><label>'+esc(f.label)+(f.required?' <span class="req">*</span>':'')+'</label><textarea id="cfg_'+esc(f.key)+'"'+ph+'>'+esc(v)+'</textarea></div>';
+      const t = f.type==='password' ? 'password' : 'text';
+      return '<div class="f"><label>'+esc(f.label)+(f.required?' <span class="req">*</span>':'')+'</label><input type="'+t+'" id="cfg_'+esc(f.key)+'" value="'+esc(v)+'"'+ph+'></div>';
+    }).join('');
+  };
+  $('#f_type').addEventListener('change', syncFields);
+  syncFields();
+  $('#mask').classList.add('on');
+  setTimeout(()=>$('#f_name').focus(),50);
+}
+function closeModal(){ $('#mask').classList.remove('on'); state.editing=null; }
+
+function readForm(){
+  const adapters = state.adapters.length? state.adapters : ADAPTER_FALLBACK;
+  const name = $('#f_name').value.trim();
+  const type = $('#f_type').value;
+  const a = adapters.find(x=>x.type===type);
+  const config = {};
+  for(const f of (a?a.fields:[])){
+    const el = document.getElementById('cfg_'+f.key);
+    if(!el) continue;
+    const v = el.value.trim();
+    if(v) config[f.key] = v;
+    else if(f.required) return { error:'「'+f.label+'」为必填项' };
+  }
+  if(!name) return { error:'任务名称不能为空' };
+  if(name.length>60) return { error:'任务名称过长（上限 60 字）' };
+  return { task:{ name, type, config, enabled: $('#f_enabled').checked } };
+}
+
+/* ============================================================
+   数据加载
+   ============================================================ */
+async function loadStatic(){
+  const [s,t,a] = await Promise.all([
+    fetch('data/state.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})),
+    fetch('data/tasks.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})),
+    fetch('data/adapters.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{}).catch(()=>({})),
+  ]);
+  state.results = (s&&s.results)||{};
+  state.logs    = (s&&s.logs)||[];
+  if(!state.connected) state.tasks = (t&&t.tasks)||[];
+  if(a&&a.adapters&&a.adapters.length) state.adapters = a.adapters;
+  $('#updatedAt').textContent = s&&s.updatedAt ? fmtTime(s.updatedAt) : '—';
+}
+
+async function refresh(){
+  try{
+    await loadStatic();
+    if(state.connected){
+      try{ state.tasks = await fetchTasks(); }catch(e){ toast('读取仓库 tasks.json 失败：'+e.message,'err'); }
+      try{ state.lastRun = await fetchLastRun(); }catch{}
+    }
+  }catch(e){ toast('加载失败：'+e.message,'err'); }
+  renderAll();
+}
+function renderAll(){ renderMode(); renderStats(); renderTasks(); renderLogs(); renderRunState(); }
+
+/* ============================================================
+   事件
+   ============================================================ */
+$('#btnConnect').addEventListener('click', async ()=>{
+  const cfg={ owner:$('#owner').value.trim(), repo:$('#repo').value.trim(),
+              branch:$('#branch').value.trim()||'main', pat:$('#pat').value.trim() };
+  if(!cfg.owner||!cfg.repo||!cfg.pat){ toast('请填写 owner / repo / PAT','err'); return; }
+  const old=state.cfg; state.cfg=cfg;
+  const btn=$('#btnConnect'); btn.disabled=true; btn.textContent='连接中…';
+  try{
+    await gh('');
+    state.connected=true; saveCfg();
+    state.tasks=await fetchTasks();
+    try{ state.lastRun=await fetchLastRun(); }catch{}
+    toast('已连接仓库 '+cfg.owner+'/'+cfg.repo,'ok');
+  }catch(e){
+    state.cfg=old; state.connected=false;
+    toast('连接失败：'+e.message,'err');
+  }finally{ btn.disabled=false; btn.textContent='连接仓库'; renderAll(); }
+});
+
+$('#btnClear').addEventListener('click', ()=>{
+  localStorage.removeItem(LS);
+  state.cfg={owner:'',repo:'',branch:'main',pat:''}; state.connected=false; state.lastRun=null;
+  ['#owner','#repo','#pat'].forEach(s=>$(s).value=''); $('#branch').value='main';
+  refresh(); toast('已清除本机连接信息');
+});
+
+$('#btnRefresh').addEventListener('click', ()=>{ refresh(); toast('已刷新'); });
+$('#btnNew').addEventListener('click', ()=>{
+  if(!state.connected){ toast('请先在上方连接仓库（填入 PAT）','err'); return; }
+  openModal(null);
+});
+$('#btnCancel').addEventListener('click', closeModal);
+$('#mask').addEventListener('click', e=>{ if(e.target===$('#mask')) closeModal(); });
+
+$('#btnSave').addEventListener('click', async ()=>{
+  const r = readForm();
+  if(r.error){ toast(r.error,'err'); return; }
+  const btn=$('#btnSave'); btn.disabled=true;
+  try{
+    const tasks = state.tasks.slice();
+    if(state.editing){
+      const i = tasks.findIndex(t=>t.id===state.editing.id);
+      if(i<0) throw new Error('任务不存在');
+      tasks[i] = Object.assign({}, tasks[i], r.task);
+    }else{
+      if(tasks.length>=50) throw new Error('任务数量已达上限（50）');
+      tasks.push(Object.assign({ id:'t_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7), createdAt:Date.now() }, r.task));
+    }
+    await saveTasksToRepo(tasks);
+    state.tasks = tasks;
+    closeModal(); renderAll();
+    toast('已保存并写回仓库，下次定时或手动运行时生效','ok');
+  }catch(e){ toast('保存失败：'+e.message,'err'); }
+  finally{ btn.disabled=false; }
+});
+
+$('#taskList').addEventListener('click', async (e)=>{
+  const btn=e.target.closest('[data-act]'); if(!btn) return;
+  const id=btn.dataset.id, act=btn.dataset.act;
+  const task=state.tasks.find(t=>t.id===id); if(!task) return;
+
+  if(act==='edit'){ openModal(task); return; }
+
+  if(act==='del'){
+    if(!confirm('确定删除任务「'+task.name+'」？此操作会同时修改仓库里的 tasks.json。')) return;
+    btn.disabled=true;
+    try{
+      await saveTasksToRepo(state.tasks.filter(t=>t.id!==id));
+      state.tasks=state.tasks.filter(t=>t.id!==id);
+      renderAll(); toast('已删除','ok');
+    }catch(err){ toast('删除失败：'+err.message,'err'); }
+    finally{ btn.disabled=false; }
+    return;
+  }
+
+  if(act==='toggle'){
+    const on=btn.checked;
+    try{
+      const tasks=state.tasks.map(t=>t.id===id?Object.assign({},t,{enabled:on}):t);
+      await saveTasksToRepo(tasks);
+      state.tasks=tasks; renderAll(); toast(on?'已启用':'已停用','ok');
+    }catch(err){ toast('切换失败：'+err.message,'err'); btn.checked=!on; }
+    return;
+  }
+
+  if(act==='run'){
+    btn.disabled=true; const old=btn.textContent; btn.textContent='触发中…';
+    try{
+      await dispatchRun(id,false);
+      toast('已触发 Actions 运行「'+task.name+'」，约 1~2 分钟后刷新查看结果','ok');
+      setTimeout(refresh, 20000);
+    }catch(err){ toast('触发失败：'+err.message,'err'); }
+    finally{ btn.disabled=false; btn.textContent=old; }
+    return;
+  }
+});
+
+$('#btnRunAll').addEventListener('click', async ()=>{
+  if(!state.connected){ toast('请先在上方连接仓库（填入 PAT）','err'); return; }
+  const btn=$('#btnRunAll'); btn.disabled=true;
+  try{
+    await dispatchRun('',true);
+    toast('已触发 Actions 运行全部任务，约 1~2 分钟后点「↻ 刷新」查看','ok');
+    setTimeout(refresh, 20000);
+  }catch(e){ toast('触发失败：'+e.message,'err'); }
+  finally{ btn.disabled=false; }
+});
+
+/* ============================================================
+   启动
+   ============================================================ */
+(async function init(){
+  loadCfg();
+  // 地址栏 ?owner=&repo= 预填，便于把面板链接直接发给别人
+  const q=new URLSearchParams(location.search);
+  if(q.get('owner')) $('#owner').value=q.get('owner');
+  if(q.get('repo')) $('#repo').value=q.get('repo');
+  await refresh();
+  if(state.cfg.pat && state.cfg.owner && state.cfg.repo){
+    $('#btnConnect').click();
+  }
+  setInterval(()=>{ if(state.connected) refresh(); }, 120000);
+})();
+</script>
+</body>
+</html>

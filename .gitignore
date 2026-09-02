@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local
+
+# 本地临时文件
+_scratch/

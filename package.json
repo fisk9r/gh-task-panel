@@ -1,0 +1,18 @@
+{
+  "name": "gh-task-panel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitHub Actions 定时任务平台：可视化面板 + 每日自动运行 + 自动部署 Pages",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "run:tasks": "node engine/run.mjs",
+    "run:only": "node engine/run.mjs --only=",
+    "run:dry": "node engine/run.mjs --dry",
+    "test": "node test/smoke.mjs",
+    "dev": "node test/dev-server.mjs",
+    "sync": "node -e \"import('./engine/store.mjs').then(m=>m.syncToDocs())\""
+  }
+}

@@ -1,0 +1,55 @@
+name: 面板 · 部署到 GitHub Pages
+
+# 面板是纯静态站点，发布源选 GitHub Actions。
+# 触发时机：推送到 main、面板/引擎代码变更、每天 03:20（北京时间 11:20）自动重建一次。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'data/**'
+      - 'engine/**'
+      - 'tasks.json'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '20 3 * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 同步运行结果到静态目录
+        env:
+          TZ: Asia/Shanghai
+        run: node -e "import('./engine/store.mjs').then(m=>m.syncToDocs())"
+
+      - name: 上传 Pages 产物
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 部署
+        id: deployment
+        uses: actions/deploy-pages@v4

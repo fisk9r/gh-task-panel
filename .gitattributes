@@ -1,0 +1,5 @@
+# 统一用 LF：workflow 的 run: 块在 Linux runner 上遇到 CRLF 会出现 \r 报错
+* text=auto eol=lf
+
+*.png binary
+*.ico binary

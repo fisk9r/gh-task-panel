@@ -1,0 +1,68 @@
+name: 定时任务 · 每日执行
+
+# 每天北京时间 08:10 与 20:10 各跑一轮（GitHub cron 走 UTC，且高峰期可能延迟 5~30 分钟，属正常）
+on:
+  schedule:
+    - cron: '10 0 * * *'
+    - cron: '10 12 * * *'
+  workflow_dispatch:
+    inputs:
+      only:
+        description: '只运行指定任务 id（留空则运行全部启用任务）'
+        required: false
+        default: ''
+      all:
+        description: '忽略启用开关，运行全部'
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - 'tasks.json'
+      - 'engine/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-task-panel-run
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 执行任务
+        # 这里注入你的密钥：左边是 {{secrets.XXX}} 里的 XXX，右边是仓库 Secrets 名。
+        # 用到哪个加哪个，不用的删掉即可。
+        env:
+          JUEJIN_COOKIE: ${{ secrets.JUEJIN_COOKIE }}
+          SENDKEY: ${{ secrets.SENDKEY }}
+          TZ: Asia/Shanghai
+          SYNC_DOCS: '1'
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.only }}" ]; then ARGS="--only=${{ github.event.inputs.only }}"; fi
+          if [ "${{ github.event.inputs.all }}" = "true" ]; then ARGS="$ARGS --all"; fi
+          node engine/run.mjs $ARGS
+
+      - name: 提交运行结果
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data docs/data 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "结果无变化，跳过提交。"
+          else
+            git commit -m "chore: 定时任务结果更新 $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi

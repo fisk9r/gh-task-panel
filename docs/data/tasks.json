@@ -1,0 +1,40 @@
+{
+  "tasks": [
+    {
+      "id": "t_demo_health",
+      "name": "示例：GitHub API 健康检测",
+      "type": "health-check",
+      "enabled": true,
+      "createdAt": 1756820000000,
+      "config": {
+        "url": "https://api.github.com/",
+        "expectText": "current_user_url",
+        "timeoutMs": "15000"
+      }
+    },
+    {
+      "id": "t_demo_baidu",
+      "name": "示例：百度首页连通性",
+      "type": "health-check",
+      "enabled": true,
+      "createdAt": 1756820000000,
+      "config": {
+        "url": "https://www.baidu.com/",
+        "expectText": "baidu",
+        "timeoutMs": "15000"
+      }
+    },
+    {
+      "id": "t_demo_api",
+      "name": "示例：公开 API 连通性",
+      "type": "generic-http",
+      "enabled": true,
+      "createdAt": 1756820000000,
+      "config": {
+        "url": "https://api.github.com/",
+        "method": "GET",
+        "expectStatus": "200"
+      }
+    }
+  ]
+}

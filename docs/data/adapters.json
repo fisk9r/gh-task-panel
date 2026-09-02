@@ -1,0 +1,108 @@
+{
+  "adapters": [
+    {
+      "type": "health-check",
+      "label": "站点健康检测",
+      "desc": "定时探测 URL 是否在线，用于监控你自己的服务/页面是否存活。",
+      "fields": [
+        {
+          "key": "url",
+          "label": "探测地址",
+          "type": "text",
+          "required": true,
+          "placeholder": "https://example.com/health"
+        },
+        {
+          "key": "expectText",
+          "label": "响应需包含的文本（可选）",
+          "type": "text",
+          "placeholder": "留空则只判断状态码"
+        },
+        {
+          "key": "timeoutMs",
+          "label": "超时（毫秒，可选）",
+          "type": "text",
+          "placeholder": "20000"
+        }
+      ]
+    },
+    {
+      "type": "juejin-checkin",
+      "label": "掘金每日签到",
+      "desc": "调用掘金公开的成长值签到接口。Cookie 请填 {{secrets.JUEJIN_COOKIE}}，并在仓库 Secrets 里存真实值。",
+      "fields": [
+        {
+          "key": "cookie",
+          "label": "掘金 Cookie",
+          "type": "password",
+          "required": true,
+          "placeholder": "{{secrets.JUEJIN_COOKIE}}"
+        }
+      ]
+    },
+    {
+      "type": "serverchan",
+      "label": "Server酱 消息推送",
+      "desc": "向 Server酱 SendKey 推送一条消息。可用 {{secrets.SENDKEY}} 引用仓库密钥。",
+      "fields": [
+        {
+          "key": "sendkey",
+          "label": "SendKey",
+          "type": "password",
+          "required": true,
+          "placeholder": "{{secrets.SENDKEY}}"
+        },
+        {
+          "key": "title",
+          "label": "标题",
+          "type": "text",
+          "placeholder": "定时任务通知"
+        },
+        {
+          "key": "content",
+          "label": "内容（支持 Markdown）",
+          "type": "textarea",
+          "placeholder": "这里是推送内容"
+        }
+      ]
+    },
+    {
+      "type": "generic-http",
+      "label": "通用 HTTP 请求",
+      "desc": "自定义一次 HTTP 请求。适合对接你自己开发的、无鉴权风控的接口。",
+      "fields": [
+        {
+          "key": "url",
+          "label": "请求地址",
+          "type": "text",
+          "required": true,
+          "placeholder": "https://api.example.com/daily"
+        },
+        {
+          "key": "method",
+          "label": "方法",
+          "type": "text",
+          "placeholder": "GET / POST，默认 GET"
+        },
+        {
+          "key": "headers",
+          "label": "请求头（JSON 对象）",
+          "type": "textarea",
+          "placeholder": "{\"Authorization\":\"Bearer xxx\"}"
+        },
+        {
+          "key": "body",
+          "label": "请求体（可选）",
+          "type": "textarea",
+          "placeholder": "留空则不发送"
+        },
+        {
+          "key": "expectStatus",
+          "label": "期望状态码",
+          "type": "text",
+          "placeholder": "200"
+        }
+      ]
+    }
+  ]
+}
