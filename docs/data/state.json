@@ -1,32 +1,59 @@
 {
-  "updatedAt": 1788581820089,
+  "updatedAt": 1788621063755,
   "results": {
     "t_demo_health": {
-      "at": 1788581818665,
+      "at": 1788621062403,
       "ok": true,
-      "message": "在线 140ms",
-      "durationMs": 140,
-      "runCount": 8,
-      "okCount": 8
+      "message": "在线 238ms",
+      "durationMs": 239,
+      "runCount": 9,
+      "okCount": 9
     },
     "t_demo_baidu": {
-      "at": 1788581820064,
+      "at": 1788621063702,
       "ok": true,
-      "message": "在线 1395ms",
-      "durationMs": 1395,
-      "runCount": 8,
-      "okCount": 8
+      "message": "在线 1296ms",
+      "durationMs": 1296,
+      "runCount": 9,
+      "okCount": 9
     },
     "t_demo_api": {
-      "at": 1788581820088,
+      "at": 1788621063754,
       "ok": true,
       "message": "HTTP 200 ✓",
-      "durationMs": 23,
-      "runCount": 8,
-      "okCount": 8
+      "durationMs": 51,
+      "runCount": 9,
+      "okCount": 9
     }
   },
   "logs": [
+    {
+      "at": 1788621063754,
+      "taskId": "t_demo_api",
+      "taskName": "示例：公开 API 连通性",
+      "type": "generic-http",
+      "ok": true,
+      "message": "HTTP 200 ✓",
+      "durationMs": 51
+    },
+    {
+      "at": 1788621063702,
+      "taskId": "t_demo_baidu",
+      "taskName": "示例：百度首页连通性",
+      "type": "health-check",
+      "ok": true,
+      "message": "在线 1296ms",
+      "durationMs": 1296
+    },
+    {
+      "at": 1788621062403,
+      "taskId": "t_demo_health",
+      "taskName": "示例：GitHub API 健康检测",
+      "type": "health-check",
+      "ok": true,
+      "message": "在线 238ms",
+      "durationMs": 239
+    },
     {
       "at": 1788581820088,
       "taskId": "t_demo_api",

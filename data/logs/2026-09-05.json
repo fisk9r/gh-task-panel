@@ -1,5 +1,32 @@
 [
   {
+    "at": 1788621063754,
+    "taskId": "t_demo_api",
+    "taskName": "示例：公开 API 连通性",
+    "type": "generic-http",
+    "ok": true,
+    "message": "HTTP 200 ✓",
+    "durationMs": 51
+  },
+  {
+    "at": 1788621063702,
+    "taskId": "t_demo_baidu",
+    "taskName": "示例：百度首页连通性",
+    "type": "health-check",
+    "ok": true,
+    "message": "在线 1296ms",
+    "durationMs": 1296
+  },
+  {
+    "at": 1788621062403,
+    "taskId": "t_demo_health",
+    "taskName": "示例：GitHub API 健康检测",
+    "type": "health-check",
+    "ok": true,
+    "message": "在线 238ms",
+    "durationMs": 239
+  },
+  {
     "at": 1788581820088,
     "taskId": "t_demo_api",
     "taskName": "示例：公开 API 连通性",
