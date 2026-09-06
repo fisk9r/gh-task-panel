@@ -1,0 +1,77 @@
+name: stock-analysis 跨仓库救援（独立 schedule 队列）
+
+# 第 4 层兜底（2026-09-06 #521）：stock-analysis 仓库的 schedule 被整体漏投时
+# （周日 20:00 周末发酵三重订阅全漏的教训），本仓库的 cron 仍在独立队列里，
+# 由它跨仓库检查 push_log 并补派缺失任务。去重依据 = 当日该 mode 是否已推送
+# （读 stock-analysis Release 里的 state.tar.gz），补派走 workflow_dispatch。
+on:
+  schedule:
+    - cron: '12 20 * * 0'    # 北京 20:12 周日 周末发酵（主 20:00）
+    - cron: '12 0 * * 1'     # 北京 08:12 周一 周末发酵（主 08:00）
+    - cron: '10 1 * * 1-5'   # 北京 09:10 盘前（主 08:50 / 外部 08:45）
+    - cron: '31 1 * * 1-5'   # 北京 09:31 竞价（主 09:25 / 外部 09:20）
+    - cron: '5 8 * * 1-5'    # 北京 16:05 收盘完整分析（主 15:20 / 外部 15:15）
+    - cron: '15 12 * * 1-5'  # 北京 20:15 复盘补发（主 20:00 / 外部 19:55）
+
+jobs:
+  rescue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检查缺失并跨仓库补派
+        env:
+          PAT: ${{ secrets.GH_RESCUE_PAT }}
+          TZ: Asia/Shanghai
+        run: |
+          set -e
+          DOW=$(date +%u); HM=$(date +%H%M); HM=$((10#$HM))
+          # 判定本窗口该补什么 mode
+          if [ "$DOW" = "7" ]; then
+            [ "$HM" -ge 2005 ] && [ "$HM" -le 2130 ] && MODE=weekend TASK=weekend || exit 0
+          elif [ "$DOW" = "1" ] && [ "$HM" -ge 805 ] && [ "$HM" -le 840 ]; then
+            MODE=weekend; TASK=weekend
+          elif [ "$HM" -ge 905 ] && [ "$HM" -le 930 ]; then
+            MODE=preauction; TASK=preauction
+          elif [ "$HM" -ge 926 ] && [ "$HM" -le 944 ]; then
+            MODE=auction; TASK=auction
+          elif [ "$HM" -ge 1550 ] && [ "$HM" -le 1730 ]; then
+            MODE=close; TASK=build
+          elif [ "$HM" -ge 2010 ] && [ "$HM" -le 2130 ]; then
+            MODE=close_again; TASK=close_again
+          else
+            echo "非救援窗口"; exit 0
+          fi
+          echo "窗口判定：mode=$MODE task=$TASK（北京 $(date '+%H:%M') 周$DOW）"
+
+          mkdir -p /tmp/xr && cd /tmp/xr
+          # 下载 state.tar.gz（取 push_log.jsonl 判定当日该 mode 是否已推）
+          ASSET_JSON=$(curl -s -H "Authorization: Bearer $PAT" \
+            https://api.github.com/repos/fisk9r/stock-analysis/releases/tags/data-snapshot)
+          ASSET_ID=$(echo "$ASSET_JSON" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for a in d.get('assets',[]):
+    if a['name']=='state.tar.gz': print(a['id']); break")
+          [ -n "$ASSET_ID" ] || { echo "找不到 state.tar.gz 资产"; exit 0; }
+          curl -sL -H "Authorization: Bearer $PAT" -H "Accept: application/octet-stream" \
+            -o state.tar.gz "https://api.github.com/repos/fisk9r/stock-analysis/releases/assets/$ASSET_ID" \
+            && tar xzf state.tar.gz 2>/dev/null \
+            && [ -f dist/push_log.jsonl ] || { echo "状态包缺失，退出"; exit 0; }
+          TODAY=$(date +%F)
+          HIT=$(python3 -c "
+import json
+hit = 0
+for line in open('dist/push_log.jsonl', encoding='utf-8'):
+    try:
+        p = json.loads(line)
+        if str(p.get('ts','')).startswith('$TODAY') and p.get('mode')=='$MODE':
+            hit = 1; break
+    except Exception: pass
+print(hit)")
+          if [ "$HIT" = "1" ]; then echo "  ✔ $MODE 今日已推送，跳过"; exit 0; fi
+          echo "  → 跨仓库补派 task=$TASK"
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $PAT" -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/fisk9r/stock-analysis/actions/workflows/stock.yml/dispatches \
+            -d "{\"ref\":\"main\",\"inputs\":{\"task\":\"$TASK\"}}")
+          echo "  dispatch HTTP $code（204=已触发）"
